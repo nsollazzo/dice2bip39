@@ -62,7 +62,51 @@ The binary hash is not portable across `g++` versions. The source hash is what y
 
 `english.txt` must sit next to the binary when you run it. The compiler also embeds the same file through `english_inc.h`. If either copy drifts, the program exits.
 
-## Verify
+## Verify the release
+
+`v0.1.0` is a source pin, not a binary. A compiled `dice2bip39` changes with `g++`. Do not download a prebuilt binary and treat its hash as this release.
+
+On a machine that still has a network, clone and check the tag before you copy anything to the ceremony machine:
+
+```
+git clone https://github.com/nsollazzo/dice2bip39.git
+cd dice2bip39
+git checkout v0.1.0
+git rev-parse HEAD
+sha256sum dice2bip39.cpp english_inc.h english.txt tools/check.py README.md
+```
+
+`git rev-parse HEAD` must print:
+
+```
+928723f6362f90457011a46cb5dcd78175c63e26
+```
+
+`sha256sum` must print:
+
+```
+25803ce2a1a6fbb330017fcfcf92ebc68a074a99c9aaee3b8e550b6f09df224e  dice2bip39.cpp
+beecb20f4978658c07eb302fd700ce49d391fe8d510b219cb1b9825d2c1aceda  english_inc.h
+2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda  english.txt
+1ce42e7352126a2eda3e79173adfac775c0e612ba5c45055358f8b796262b361  tools/check.py
+62bc3e7ea703867423b1191e378c4598111834023e0e541515398fbf4b3ca2ea  README.md
+```
+
+If any line differs, stop. Do not compile that tree for a ceremony. The same five lines are on the [v0.1.0 release](https://github.com/nsollazzo/dice2bip39/releases/tag/v0.1.0). Compare the release page to this file. They must match. A release page that disagrees with a tag you just checked out is the thing you do not trust.
+
+If the ceremony machine has no `git`, copy the five files and run `sha256sum` there. The hashes are what you are checking, not the transport.
+
+Then, still before any real rolls:
+
+```
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -o dice2bip39 dice2bip39.cpp
+./dice2bip39 --self-test
+python3 tools/check.py
+```
+
+Both must print `ok`. Record `g++ -v` and the commit hash on paper, next to the roll sheet. A later edit of this repository gets a new tag and a new set of hashes. Do not reuse this pin after the source changes.
+
+## Verify the program
 
 ```
 python3 tools/check.py
