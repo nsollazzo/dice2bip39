@@ -22,7 +22,7 @@ The English wordlist is the BIP39 list: 2048 words, `abandon` through `zoo`, fir
 2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda
 ```
 
-The binary contains that file via `include_str!` and also reads `english.txt` from the current directory. Both must hash to the pin or the program exits. It will not warn and continue.
+The binary contains that file via `english_inc.h` and also reads `english.txt` from the current directory. Both must hash to the pin or the program exits. It will not warn and continue.
 
 ## What a published vector is
 
@@ -52,15 +52,15 @@ BIP39 itself points at the Trezor `vectors.json` file for entropy-to-mnemonic ch
 
 ## Build
 
-No Cargo. No crates.
+No CMake. No third-party libraries. The hash is transcribed, not linked.
 
 ```
-rustc -C opt-level=2 -C debuginfo=0 -C strip=symbols dice2bip39.rs -o dice2bip39
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -o dice2bip39 dice2bip39.cpp
 ```
 
-The binary hash is not portable across `rustc` versions. The source hash is what you pin. Record `rustc -vV` next to any binary you actually run in a ceremony. This tree was developed with rustc 1.97.1 (`8bab26f4f68e0e26f0bb7960be334d5b520ea452`).
+The binary hash is not portable across `g++` versions. The source hash is what you pin. Record `g++ -v` next to any binary you actually run in a ceremony. This tree was ported with g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0.
 
-`english.txt` must sit next to the binary when you run it. The compiler also embeds the same file. If either copy drifts, the program exits.
+`english.txt` must sit next to the binary when you run it. The compiler also embeds the same file through `english_inc.h`. If either copy drifts, the program exits.
 
 ## Verify
 
@@ -69,7 +69,7 @@ python3 tools/check.py
 ./dice2bip39 --self-test
 ```
 
-`tools/check.py` is a second implementation. It uses Python's `hashlib` (not the Rust SHA-256 in this file) to recompute BIP39 and compare. `--self-test` runs two SHA-256 implementations inside the Rust file against each other, then checks published vectors. They must agree. If they do not, exit code 1. Do not pick a favorite.
+`tools/check.py` is a second implementation. It uses Python's `hashlib` (not the SHA-256 in the C++ file) to recompute BIP39 and compare. `--self-test` runs two SHA-256 implementations inside the C++ file against each other, then checks published vectors. They must agree. If they do not, exit code 1. Do not pick a favorite.
 
 SHA-256 vectors the self-test requires:
 
@@ -86,14 +86,55 @@ A green `check.py` means: this source, this wordlist, and Python's SHA-256 agree
 
 ## How to run
 
+You need a C++17 compiler and `english.txt` in the current directory. Python is only for the second checker. The ceremony machine does not need it.
+
+```
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -o dice2bip39 dice2bip39.cpp
+./dice2bip39 --self-test
+```
+
+`--self-test` must print `ok` before you type anything you intend to fund. If it does not, stop. Do not roll.
+
+### Practice, on the build machine only
+
+Use the published 99-digit string. Those words are public. Do not fund them.
+
+```
+./dice2bip39
+```
+
+Paste or type:
+
+```
+655152231316521321611331544441236164664431121534415633526456254462245546236542364246312613322234612
+```
+
+Press Enter, then Ctrl-D. Stdout must be the SeedSigner words in the section above. Stderr must say `rolls: 99` and the SHA-256 printed next to that example. If either differs, the binary is not the one this README describes.
+
+Do not put real rolls in a shell variable. `ROLLS=...` and `printf '%s' "$ROLLS"` land in shell history.
+
+### Real rolls, on the ceremony machine
+
+Write the faces on paper first. One digit per face, left to right, no spaces, no zeros, only `1` through `6`, at least 99 digits. Count them on the paper before you touch the keyboard.
+
+Copy `dice2bip39` and `english.txt` to that machine. Do not copy your roll sheet as a file.
+
 ```
 ./dice2bip39 --self-test
-printf '%s\n' "$ROLLS" | ./dice2bip39
+./dice2bip39
 ```
 
-Stdout is the 24 words, once. Stderr is the roll count and `SHA-256` of the digit string. Exit 0 on success, 1 on an internal check failure, 2 on bad input.
+Type the digit string. Press Enter. Press Ctrl-D.
 
-There is no file output, no clipboard helper, and no QR code. `--hex-to-mnemonic` exists so the BIP39 test vectors can be checked. It is not a way to import a seed.
+You get three pieces of output:
+
+- stderr `rolls: N` — must equal the count on your paper. If it does not, you mistyped. Stop. New rolls.
+- stderr `sha256:` — write this down. A second implementation must print the same hash from the same digits.
+- stdout, one line — the 24 words. Write them by hand. Do not photograph the screen. Do not copy the line to a networked computer.
+
+Exit 0 is success. Exit 2 is bad input: a `0`, a letter, a space, fewer than 99 digits, or more than 4096. Exit 1 is an internal check failure (wordlist pin, hash disagreement, vector drift). On exit 1 or 2, do not debug with those rolls. New rolls.
+
+`--hex-to-mnemonic` exists so the BIP39 test vectors can be checked. It is not a way to import a seed. There is no file output, no clipboard helper, and no QR code.
 
 ## Ceremony
 
@@ -105,12 +146,12 @@ This repository is the program. It is not the ceremony.
 
 ## What this does not stop
 
-- A compromised `rustc` that emits a different binary than the source you read.
+- A compromised `g++` that emits a different binary than the source you read.
 - A compromised operating system on the machine that sees the rolls.
 - A camera, microphone, or cloud keyboard in the room.
 - A second implementation that was patched to lie in the same way.
 - Someone reading the screen.
-- Swap, a core dump, or the framebuffer retaining the words. The wipe at the end is best-effort (`black_box` so LLVM does not delete the overwrite). It is not a guarantee.
+- Swap, a core dump, or the framebuffer retaining the words. The wipe at the end is best-effort (a volatile write so the compiler does not delete the overwrite). It is not a guarantee.
 
 Defeat of the hash, the wordlist, or the bit packing must not silently produce a funded wallet you cannot reconstruct. That is why the program aborts when its two SHA-256 implementations disagree, and why a second language checks the same vectors.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Independent checker for dice2bip39.
 
-Uses hashlib (OpenSSL/libcrypto via CPython), not the Rust binary's SHA-256.
+Uses hashlib (OpenSSL/libcrypto via CPython), not the C++ binary's SHA-256.
 A pass means the binary matched published vectors and this script's own BIP39
 packing. It does not mean the ceremony computer is clean.
 """
@@ -82,7 +82,7 @@ def run(args: list[str], stdin: bytes | None = None) -> subprocess.CompletedProc
 
 def main() -> None:
     if not BIN.is_file():
-        die(f"missing binary {BIN}; rustc dice2bip39.rs -o dice2bip39 first")
+        die(f"missing binary {BIN}; g++ -std=c++17 -O2 -o dice2bip39 dice2bip39.cpp first")
     words = load_words()
 
     for data, expect in SHA_VECTORS:
